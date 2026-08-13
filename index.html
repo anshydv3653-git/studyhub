@@ -406,20 +406,6 @@ section{scroll-margin-top:calc(var(--nav-h) + 8px)}
 .ch-tile.ai-tile{background:linear-gradient(160deg,#fff,#fdf2f4);border-color:rgba(225,29,72,.25)}
 .ch-tile.ai-tile .ai-badge{position:absolute;top:14px;right:14px;font-size:.62rem;font-weight:800;letter-spacing:.1em;color:#fff;background:var(--grad-rose);padding:4px 9px;border-radius:999px}
 
-/* ============================================================
-   CHAPTER LIST (added for dynamic Supabase chapters)
-   Minimal styles for the chapter-names list added to the
-   existing Class 10 Science chapter section. Names themselves
-   reuse the existing .chips pattern. Nothing here changes any
-   existing rule.
-   ============================================================ */
-.chapter-list{padding:24px clamp(20px,3vw,30px) 20px;border-bottom:1px dashed rgba(225,29,72,.18)}
-.chapter-list-title{display:flex;align-items:center;gap:10px;font-size:.78rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--rose-700);margin-bottom:14px}
-.chapter-list-title::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--grad-rose);box-shadow:0 0 0 4px rgba(225,29,72,.12)}
-.chapter-list .cl-status{color:var(--muted);font-size:.92rem;font-weight:600;margin-bottom:4px}
-.chapter-list .cl-status.cl-err{color:var(--rose-800)}
-.chapter-list .chips{margin-top:0}
-
 /* ============ AI SECTION ============ */
 .ai{position:relative;padding:clamp(70px,9vw,110px) 0;overflow:hidden;background:linear-gradient(180deg,transparent,rgba(252,231,236,.55) 45%,rgba(252,231,236,.55) 60%,transparent)}
 .ai::before{content:"";position:absolute;inset:0;background:
@@ -874,17 +860,6 @@ section{scroll-margin-top:calc(var(--nav-h) + 8px)}
             </a>
           </div>
         </div>
-        <!-- ============================================================
-             CHAPTER LIST — populated dynamically from the Supabase
-             `chapters` table (subject_id = 1 → Class 10 Science).
-             No hard-coded chapter names. Rendered by
-             StudyHubDB.loadClass10ScienceChapters() in the script below.
-             ============================================================ -->
-        <div class="chapter-list" id="chapterList">
-          <div class="chapter-list-title">Chapters</div>
-          <div class="cl-status" id="chapterListStatus" aria-live="polite"></div>
-          <div class="chips" id="chapterChips" role="list"></div>
-        </div>
         <div class="chapter-tiles">
           <a href="#chapter" class="tilt ch-tile reveal" style="--d:.0s">
             <span class="ct-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
@@ -1066,178 +1041,6 @@ section{scroll-margin-top:calc(var(--nav-h) + 8px)}
 <button id="toTop" aria-label="Back to top">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
 </button>
-
-<!-- ============================================================
-     SUPABASE CLIENT (ADDED FOR STUDYHUB DATABASE CONNECTION)
-     ------------------------------------------------------------
-     This block is the ONLY addition for the Supabase connection.
-     It does NOT change any existing UI, CSS, structure or
-     functionality. It only loads the client and makes the
-     database ready to be fetched (chapters → study interface).
-     ============================================================ -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-/* ============================================================
-   SUPABASE CONNECTION — StudyHub
-   ------------------------------------------------------------
-   CONFIGURATION (edit only the key below):
-
-   1) PROJECT URL  → already set to your Supabase project.
-   2) PUBLISHABLE KEY → paste your real key below, replacing the
-      placeholder. Use the PUBLIC "anon" / publishable key only.
-
-   ⚠️  SECURITY: NEVER paste a SECRET or SERVICE-ROLE key here.
-   This file is visible to every visitor of the site, so only the
-   publishable (anon) key is safe. Secret keys belong server-side.
-   ============================================================ */
-const SUPABASE_URL = "https://qijdyaorbvbvuumzdxdu.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_jRJUeUmDJ9CMONA75QCCCQ_2aCizXnE"; /* <-- PASTE YOUR REAL PUBLISHABLE KEY HERE */
-
-/* Global namespace exposed for future use (rendering chapters, notes, etc.) */
-window.StudyHubDB = {
-  supabase: null,
-  isConnected: false,
-  configError: null
-};
-
-(function(){
-  "use strict";
-
-  var hasLib = typeof window.supabase !== "undefined";
-  var hasKey = SUPABASE_PUBLISHABLE_KEY.indexOf("YOUR_SUPABASE") === -1 &&
-               SUPABASE_PUBLISHABLE_KEY.length > 20;
-
-  /* Client library missing (e.g. offline preview / CDN blocked) — leave site untouched. */
-  if (!hasLib){
-    window.StudyHubDB.configError = "Supabase JS client not loaded (offline preview or CDN blocked).";
-    return;
-  }
-
-  /* Key still a placeholder — connection stays dormant until the real key is pasted. */
-  if (!hasKey){
-    window.StudyHubDB.configError = "Supabase publishable key not set — paste it in the SUPABASE CONNECTION block.";
-    return;
-  }
-
-  var client = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-  window.StudyHubDB.supabase = client;
-  window.StudyHubDB.isConnected = true;
-
-  /* --- Ready-to-use fetch helpers (database tables already created) --- */
-
-  /* chapters — the immediate goal: feed the existing StudyHub chapter interface.
-     Usage: window.StudyHubDB.fetchChapters({ columns:"*", orderBy:"id", limit:50, ascending:true })
-     Adjust columns / order once your chapter row structure is confirmed. */
-  window.StudyHubDB.fetchChapters = function(opts){
-    opts = opts || {};
-    var q = client.from("chapters").select(opts.columns || "*");
-    if (opts.orderBy){ q = q.order(opts.orderBy, { ascending: opts.ascending !== false }); }
-    if (opts.limit){ q = q.limit(opts.limit); }
-    return q;
-  };
-
-  /* subjects / notes / questions — same pattern, ready when needed. */
-  window.StudyHubDB.fetchSubjects = function(opts){
-    opts = opts || {};
-    var q = client.from("subjects").select(opts.columns || "*");
-    if (opts.orderBy){ q = q.order(opts.orderBy, { ascending: opts.ascending !== false }); }
-    if (opts.limit){ q = q.limit(opts.limit); }
-    return q;
-  };
-  window.StudyHubDB.fetchNotes = function(opts){
-    opts = opts || {};
-    var q = client.from("notes").select(opts.columns || "*");
-    if (opts.orderBy){ q = q.order(opts.orderBy, { ascending: opts.ascending !== false }); }
-    if (opts.limit){ q = q.limit(opts.limit); }
-    return q;
-  };
-  window.StudyHubDB.fetchQuestions = function(opts){
-    opts = opts || {};
-    var q = client.from("questions").select(opts.columns || "*");
-    if (opts.orderBy){ q = q.order(opts.orderBy, { ascending: opts.ascending !== false }); }
-    if (opts.limit){ q = q.limit(opts.limit); }
-    return q;
-  };
-
-  /* ============================================================
-     CLASS 10 SCIENCE CHAPTERS → EXISTING CHAPTER UI
-     Fetches chapter names from the `chapters` table where
-     subject_id = 1 and renders them into the existing chapter
-     section (#chapterList), reusing the existing .chips style.
-     Graceful: if Supabase is unavailable it only shows a status
-     line — the rest of the page is untouched and keeps working.
-     ============================================================ */
-  window.StudyHubDB.loadClass10ScienceChapters = function(){
-    var listEl = document.getElementById('chapterList');
-    if (!listEl) return;
-
-    var statusEl = document.getElementById('chapterListStatus');
-
-    function showStatus(msg, isError){
-      statusEl.textContent = msg;
-      statusEl.classList.toggle('cl-err', !!isError);
-    }
-
-    /* Supabase not ready (no client lib / key not set) — show a status, do nothing else. */
-    if (!window.StudyHubDB.isConnected || !window.StudyHubDB.supabase){
-      showStatus(window.StudyHubDB.configError || 'Chapters will appear here once Supabase is connected.', false);
-      return;
-    }
-
-    showStatus('Loading chapters…', false);
-
-    var chips = document.getElementById('chapterChips');
-    window.StudyHubDB.supabase
-      .from('chapters')
-      .select('id, name')
-      .eq('subject_id', 1)
-      .order('id', { ascending: true })
-      .then(function(res){
-        if (res.error){
-          showStatus("Couldn't load chapters. Please try again later.", true);
-          return;
-        }
-        var rows = res.data || [];
-        chips.innerHTML = '';
-        if (!rows.length){
-          showStatus('No chapters found for Class 10 Science yet.', false);
-          return;
-        }
-        statusEl.textContent = '';
-        rows.forEach(function(ch, i){
-          var s = document.createElement('span');
-          var b = document.createElement('b');
-          b.textContent = 'Ch ' + (i + 1);
-          s.appendChild(b);
-          s.appendChild(document.createTextNode(' ' + (ch.name || 'Untitled chapter')));
-          chips.appendChild(s);
-        });
-      })
-      .catch(function(err){
-        showStatus("Couldn't load chapters. Please try again later.", true);
-      });
-  };
-
-  /* Run it once the page is ready (script sits at the end of <body>, so now). */
-  window.StudyHubDB.loadClass10ScienceChapters();
-
-  /* --- First-connection test (console only, no UI change) ---
-     Reads a few rows from `chapters` to confirm the publishable key
-     and connection work. Note: if RLS blocks anonymous reads, the
-     query returns [] (or an error) until your policies allow it. */
-  client.from("chapters").select("id, name").limit(5)
-    .then(function(res){
-      if (res.error){
-        console.warn("[StudyHub] Supabase connected, but chapters query failed:", res.error.message);
-      } else {
-        console.info("[StudyHub] Supabase connected. Sample chapters fetched:", (res.data || []).length, res.data);
-      }
-    })
-    .catch(function(err){
-      console.warn("[StudyHub] Supabase connection error:", err);
-    });
-})();
-</script>
 
 <script>
 (function(){
@@ -1445,6 +1248,6 @@ window.StudyHubDB = {
   render();
 })();
 </script>
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f"}' crossorigin="anonymous"></script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a29903df982e2160',t:'MTc4NjQ2OTkxOA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f"}' crossorigin="anonymous"></script>
 </body>
 </html>
